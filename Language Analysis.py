@@ -2,98 +2,93 @@
 # We have employed the spacy and meduim range model to undertake the language similarity in between bots and Human
 # Since meduim model is quite a heavy, we have to resort to calculation individual similarity of bot and human driven content. 
 
-'''1.1. Anti-Environment'''
 import pandas as pd
 import spacy
+from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.graph_objects as go
 
 # Load spaCy model
 nlp = spacy.load('en_core_web_md')
 
-# Function to calculate average similarity between bot and human texts in a dataset
-def calculate_similarity(df):
-    # Drop rows with NaN in 'cleaned' column
-    df = df.dropna(subset=['cleaned'])
-    
-    # Ensure all texts are strings
-    df['cleaned'] = df['cleaned'].astype(str)
-    
-    bot_texts = df[df['classification'] == 'bot']['cleaned'].tolist()
-    human_texts = df[df['classification'] == 'human']['cleaned'].tolist()
+# Define function for similarity calculation
+def calculate_cosine_similarity(df):
+    # Determine which column to use for text data
+    if 'filter_token' in df.columns:
+        text_column = 'filter_token'
+    elif 'cleaned' in df.columns:
+        text_column = 'cleaned'
+    else:
+        raise ValueError("DataFrame must contain either 'filter_token' or 'cleaned' column.")
 
-    bot_docs = [nlp(text) for text in bot_texts]
-    human_docs = [nlp(text) for text in human_texts]
+    # Clean the text column to ensure all entries are strings
+    df[text_column] = df[text_column].astype(str).fillna('')
 
-    similarity_scores = []
-    for bot_doc in bot_docs:
-        for human_doc in human_docs:
-            similarity_scores.append(bot_doc.similarity(human_doc))
-    
-    avg_similarity = np.mean(similarity_scores)
-    return avg_similarity
+    # Separate bot and human texts
+    bot_texts = df[df['classification'] == 'bot'][text_column].tolist()
+    human_texts = df[df['classification'] == 'human'][text_column].tolist()
 
-# Load a single dataset
+    # Create spaCy documents and vectors
+    bot_vectors = [nlp(text).vector for text in bot_texts]
+    human_vectors = [nlp(text).vector for text in human_texts]
+
+    # Calculate cosine similarity
+    similarity_matrix = cosine_similarity(bot_vectors, human_vectors)
+
+    # Calculate average similarity
+    avg_similarity = np.mean(similarity_matrix)
+
+    return avg_similarity, similarity_matrix
+
+# Load datasets
 df1 = pd.read_csv('sentiments_anti_env_corpus.csv')
-
-# Calculate similarity for the dataset
-avg_similarity = calculate_similarity(df1)
-print(f'Average Similarity for Anti-Environment: {avg_similarity}')
-
-'''1.2. Anti-Vaccine'''
-# Load a single dataset
 df2 = pd.read_csv('sentiments_anti_vacc_corpus.csv')
-
-# Calculate similarity for the dataset
-avg_similarity = calculate_similarity(df2)
-print(f'Average Similarity for Anti-Vaccine: {avg_similarity}')
-
-# Visualize the result
-similarity_df = pd.DataFrame([{'Dataset': 'Anti-Vaccine', 'Average Similarity': avg_similarity}])
-
-plt.figure(figsize=(10, 6))
-sns.barplot(x='Dataset', y='Average Similarity', data=similarity_df)
-plt.title('Average Language Similarity between Bot and Human Texts in Anti-Vaccine Dataset')
-plt.xlabel('Dataset')
-plt.ylabel('Average Similarity')
-plt.ylim(0, 1)  # Similarity scores range from 0 to 1
-plt.show()
-
-'''1.3 Pro Environment'''
-# Load pro-environment dataset
 df3 = pd.read_csv('sentiments_pro_env_corpus.csv')
-
-# Calculate similarity for the dataset
-avg_similarity = calculate_similarity(df3)
-print(f'Average Similarity for Pro-Environment: {avg_similarity}')
-
-# Visualize the result
-similarity_df = pd.DataFrame([{'Dataset': 'Pro-Environment', 'Average Similarity': avg_similarity}])
-
-plt.figure(figsize=(10, 6))
-sns.barplot(x='Dataset', y='Average Similarity', data=similarity_df)
-plt.title('Average Language Similarity between Bot and Human Texts in Pro-Environment Dataset')
-plt.xlabel('Dataset')
-plt.ylabel('Average Similarity')
-plt.ylim(0, 1)  # Similarity scores range from 0 to 1
-plt.show()
-
-'''1.4. Pro Vaccine
-# Load pro-vaccine dataset
 df4 = pd.read_csv('sentiments_pro_vacc_corpus.csv')
 
-# Calculate similarity for the dataset
-avg_similarity = calculate_similarity(df4)
-print(f'Average Similarity for Pro-Vaccine: {avg_similarity}')
+# Calculate similarities for each dataset
+datasets = {
+    'Anti-Environment': df1,
+    'Anti-Vaccine': df2,
+    'Pro-Environment': df3,
+    'Pro-Vaccine': df4
+}
 
-# Visualize the result
-similarity_df = pd.DataFrame([{'Dataset': 'Pro-Vaccine', 'Average Similarity': avg_similarity}])
+similarities = {}
+similarity_matrices = {}
 
-plt.figure(figsize=(10, 6))
-sns.barplot(x='Dataset', y='Average Similarity', data=similarity_df)
-plt.title('Average Language Similarity between Bot and Human Texts in Pro-Vaccine Dataset')
-plt.xlabel('Dataset')
-plt.ylabel('Average Similarity')
-plt.ylim(0, 1)  # Similarity scores range from 0 to 1
-plt.show()
+for label, df in datasets.items():
+    avg_similarity, similarity_matrix = calculate_cosine_similarity(df)
+    similarities[label] = avg_similarity
+    similarity_matrices[label] = similarity_matrix
+
+    # Optionally, save the similarity matrix to a CSV file
+    sim_df = pd.DataFrame(similarity_matrix, index=[f'Bot_{i}' for i in range(len(similarity_matrix))],
+                          columns=[f'Human_{j}' for j in range(len(similarity_matrix[0]))])
+    sim_df.to_csv(f'language_similarity_analysis_cosine_{label}.csv')
+
+    print(f'Average Similarity for {label}: {avg_similarity}')
+
+# Convert similarities to lists for Plotly
+datasets_list = list(similarities.keys())
+avg_similarities = list(similarities.values())
+
+# Define bar width
+bar_width = 0.4  # Adjust this value to change the width of the bars
+
+# Create bar chart
+fig = go.Figure(data=[
+    go.Bar(name='Average Similarity', x=datasets_list, y=avg_similarities, marker_color='indianred', width=[bar_width]*len(datasets_list))
+])
+
+# Update layout
+fig.update_layout(
+    title='Average Language Similarity between Bot and Human Texts in Each Dataset',
+    xaxis_title='Dataset',
+    yaxis_title='Average Similarity',
+    yaxis=dict(range=[0, 1]),  # Similarity scores range from 0 to 1
+    template='plotly_white'
+)
+
+# Show plot
+fig.show()
