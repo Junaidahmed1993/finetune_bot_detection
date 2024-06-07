@@ -1,7 +1,4 @@
-'''The Language Similarity'''
-# We have employed the spacy and meduim range model to undertake the language similarity in between bots and Human
-# Since meduim model is quite a heavy, we have to resort to calculation individual similarity of bot and human driven content. 
-
+'''1. The Language Similarity'''
 import pandas as pd
 import spacy
 from sklearn.metrics.pairwise import cosine_similarity
