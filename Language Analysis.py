@@ -89,3 +89,11 @@ fig.update_layout(
 
 # Show plot
 fig.show()
+
+
+'''Results 
+Average Similarity for Anti-Environment: 0.6665716171264648
+Average Similarity for Anti-Vaccine: 0.7359713912010193
+Average Similarity for Pro-Environment: 0.5394230484962463
+Average Similarity for Pro-Vaccine: 0.5021994709968567
+'''
