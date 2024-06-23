@@ -487,3 +487,54 @@ fig_trigrams_bots.update_layout(title_x=0.5)
 fig_trigrams_bots.update_layout(autosize=True)
 
 fig_trigrams_bots.show()
+
+'''2.7. Topic Modelling'''
+# Note, we will repeat following code for the each of our datasets
+
+import pandas as pd
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from gensim.corpora import Dictionary
+from gensim.models import LdaModel
+from pprint import pprint
+
+df= pd.read_csv('anti_env_corpus1.csv')
+
+# Download NLTK resources
+nltk.download('stopwords')
+nltk.download('punkt')
+
+
+# Filter bot data
+bot_data = df[df['classification'] == 'bot']
+
+# Remove stopwords and handle NaN values appropriately
+stop_words = set(stopwords.words('english'))
+bot_data['cleaned_no_stopwords'] = bot_data['cleaned'].apply(lambda x: ' '.join([word for word in str(x).split() if word.lower() not in stop_words and pd.notnull(word)]))
+
+# Tokenization
+bot_data['tokenized'] = bot_data['cleaned_no_stopwords'].apply(lambda x: word_tokenize(x.lower()))
+
+# Create dictionary and corpus
+dictionary = Dictionary(bot_data['tokenized'])
+corpus = [dictionary.doc2bow(doc) for doc in bot_data['tokenized']]
+
+# Train LDA model
+lda_model = LdaModel(corpus=corpus,
+                     id2word=dictionary,
+                     num_topics=5,  # Specify the number of topics
+                     passes=10,     # Number of passes through the corpus
+                     iterations=100,  # Maximum number of iterations through the corpus
+                     random_state=42)
+
+# Print topics
+print("Topics:")
+pprint(lda_model.print_topics())
+
+# Visualize topics
+import pyLDAvis.gensim
+pyLDAvis.enable_notebook()
+vis = pyLDAvis.gensim.prepare(lda_model, corpus, dictionary)
+pyLDAvis.save_html(vis, 'lda_visualization_vacc_datasets.html')  # Save visualization to HTML file
+
